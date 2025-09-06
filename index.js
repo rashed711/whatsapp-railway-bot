@@ -1,46 +1,36 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode');
+
 const express = require('express');
+const { create } = require('venom-bot');
+const QRCode = require('qrcode');
+const fs = require('fs');
 
 const app = express();
-app.use(express.json());
+const PORT = process.env.PORT || 3000;
 
-const client = new Client({
-    authStrategy: new LocalAuth(),
-    puppeteer: { headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] }
+app.get('/', (req, res) => {
+  res.send('WhatsApp bot is running');
 });
 
-client.on('qr', qr => {
-    qrcode.toFile('qr.png', qr, { width: 300 }, (err) => {
-        if (err) throw err;
-        console.log('✅ QR code saved as qr.png');
-    });
-});
+create({
+  session: 'session1',
+  multidevice: true
+}).then((client) => start(client))
+  .catch((err) => console.error(err));
 
-client.on('ready', () => {
-    console.log('✅ WhatsApp client is ready!');
-});
-
-client.on('message', message => {
-    console.log(`📩 New message: ${message.body}`);
-    if (message.body.toLowerCase() === 'hi') {
-        message.reply('Hello from your WhatsApp bot!');
+function start(client) {
+  console.log('Bot started!');
+  client.onMessage((message) => {
+    if (message.body === 'hi') {
+      client.sendText(message.from, 'Hello from WhatsApp bot!');
     }
+  });
+}
+
+// QR code handling
+const qrPath = './qr.png';
+QRCode.toFile(qrPath, 'QR_CODE_SAMPLE', { width: 300 }, (err) => {
+  if (err) console.error(err);
+  else console.log(`QR code saved at ${qrPath}`);
 });
 
-app.post('/send', async (req, res) => {
-    const { number, message } = req.body;
-    if (!number || !message) return res.status(400).send('Number and message required');
-    try {
-        const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
-        await client.sendMessage(chatId, message);
-        res.send('✅ Message sent');
-    } catch (err) {
-        console.error(err);
-        res.status(500).send('Error sending message');
-    }
-});
-
-app.listen(3000, () => console.log('🌐 Server running on port 3000'));
-
-client.initialize();
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
